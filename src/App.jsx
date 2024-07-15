@@ -1,7 +1,8 @@
 import React from 'react'
 import './App.css'
 import { BrowserRouter as Router, Switch, Route } from 'react-router-dom'
-import Home from './Home'
+// import Home from './Home'
+import Main from './Main'
 import UserForm from './Userform'
 import GameApp from './GameApp'
 import { useAuthState } from 'react-firebase-hooks/auth'
@@ -24,7 +25,7 @@ export default function App() {
         <Router>
             <Switch>
                 <Route exact path="/">
-                    <Home></Home>
+                    <Main></Main>
                 </Route>
                 <Route path="/game/:id">
                     <GameApp />
