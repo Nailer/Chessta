@@ -4,6 +4,7 @@ import { gameSubject, initGame, resetGame } from "./Game";
 import Board from "./Board";
 import { useParams, useHistory } from "react-router-dom";
 import { db } from "./firebase";
+import peer from "simple-peer";
 
 function GameApp() {
   const [board, setBoard] = useState([]);
@@ -57,6 +58,47 @@ function GameApp() {
   if (initResult === "intruder") {
     return "The game is already full";
   }
+
+  ///////////////////////////////VIDEO STREAMING/////////////////////////////
+  const [peer, setPeer] = useState(null);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const startScreenSharing = async () => {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+      videoRef.current.srcObject = stream;
+
+      const peer = new SimplePeer({
+        initiator: true,
+        trickle: false,
+        stream: stream,
+      });
+
+      peer.on("signal", (data) => {
+        // Send `data` to your signaling server to share with the other peer
+        // This part requires a signaling server to exchange WebRTC signals
+        console.log("Signal data:", data);
+      });
+
+      peer.on("connect", () => {
+        console.log("Connected to peer");
+      });
+
+      peer.on("stream", (stream) => {
+        // Display the incoming stream in your app
+        videoRef.current.srcObject = stream;
+      });
+
+      setPeer(peer);
+    };
+
+    startScreenSharing();
+  }, []);
+
+  ///////////////////////////////VIDEO STREAMING/////////////////////////////
 
   return (
     <div className="app-container">
