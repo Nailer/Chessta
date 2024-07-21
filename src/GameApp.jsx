@@ -4,7 +4,7 @@ import { gameSubject, initGame, resetGame } from "./Game";
 import Board from "./Board";
 import { useParams, useHistory } from "react-router-dom";
 import { db } from "./firebase";
-import peer from "simple-peer";
+import SimplePeer from "simple-peer";
 
 function GameApp() {
   const [board, setBoard] = useState([]);
@@ -18,46 +18,6 @@ function GameApp() {
   const { id } = useParams();
   const history = useHistory();
   const sharebleLink = window.location.href;
-  useEffect(() => {
-    let subscribe;
-    async function init() {
-      console.log("[db]", db);
-      const res = await initGame(id !== "local" ? db.doc(`games/${id}`) : null);
-      console.log("[res]", res);
-
-      setInitResult(res);
-      setLoading(false);
-      if (!res) {
-        subscribe = gameSubject.subscribe((game) => {
-          setBoard(game.board);
-          setIsGameOver(game.isGameOver);
-          setResult(game.result);
-          setPosition(game.position);
-          setStatus(game.status);
-          setGame(game);
-        });
-      }
-    }
-
-    init();
-
-    return () => subscribe && subscribe.unsubscribe();
-  }, [id]);
-
-  async function copyToClipboard() {
-    await navigator.clipboard.writeText(sharebleLink);
-  }
-
-  if (loading) {
-    return "Loading ...";
-  }
-  if (initResult === "notfound") {
-    return "Game Not found";
-  }
-
-  if (initResult === "intruder") {
-    return "The game is already full";
-  }
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
   const [peer, setPeer] = useState(null);
@@ -99,6 +59,47 @@ function GameApp() {
   }, []);
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
+
+  useEffect(() => {
+    let subscribe;
+    async function init() {
+      console.log("[db]", db);
+      const res = await initGame(id !== "local" ? db.doc(`games/${id}`) : null);
+      console.log("[res]", res);
+
+      setInitResult(res);
+      setLoading(false);
+      if (!res) {
+        subscribe = gameSubject.subscribe((game) => {
+          setBoard(game.board);
+          setIsGameOver(game.isGameOver);
+          setResult(game.result);
+          setPosition(game.position);
+          setStatus(game.status);
+          setGame(game);
+        });
+      }
+    }
+
+    init();
+
+    return () => subscribe && subscribe.unsubscribe();
+  }, [id]);
+
+  async function copyToClipboard() {
+    await navigator.clipboard.writeText(sharebleLink);
+  }
+
+  if (loading) {
+    return "Loading ...";
+  }
+  if (initResult === "notfound") {
+    return "Game Not found";
+  }
+
+  if (initResult === "intruder") {
+    return "The game is already full";
+  }
 
   return (
     <div className="app-container">
