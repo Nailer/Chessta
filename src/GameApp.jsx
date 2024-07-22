@@ -120,12 +120,20 @@ function GameApp() {
     }
   }
 
-  ///////////////////////////////VIDEO STREAMING/////////////////////////////
-  const [peer, setPeer] = useState(null);
-  const videoRef = useRef(null);
+  async function startScreenCapture() {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+      return stream;
+    } catch (err) {
+      console.error("Error: " + err);
+      return null;
+    }
+  }
 
-  // useEffect(() => {
-  const startScreenSharing = async () => {
+  async function startStream() {
     if (streamId.length < 10) {
       // Call the function to create the stream
       createStream();
@@ -147,39 +155,60 @@ function GameApp() {
       "streamKey=",
       streamKey
     );
+    const stream = await startScreenCapture();
 
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: true,
-    });
-    videoRef.current.srcObject = stream;
+    if (stream) {
+      const response = await fetch("http://localhost:3001/start-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stream_server: streamServer,
+          stream_key: streamKey,
+        }),
+      });
 
-    const peer = new SimplePeer({
-      initiator: true,
-      trickle: false,
-      stream: stream,
-    });
+      if (response.ok) {
+        console.log("Stream started");
+      } else {
+        console.error("Failed to start stream");
+      }
+    }
+  }
 
-    peer.on("signal", (data) => {
-      // Send `data` to your signaling server to share with the other peer
-      // This part requires a signaling server to exchange WebRTC signals
-      console.log("Signal data:", data);
-    });
+  ///////////////////////////////VIDEO STREAMING/////////////////////////////
+  const [peer, setPeer] = useState(null);
+  const videoRef = useRef(null);
 
-    peer.on("connect", () => {
-      console.log("Connected to peer");
-    });
+  useEffect(() => {
+    async function initPeer() {
+      const stream = await startScreenCapture();
+      const newPeer = new SimplePeer({
+        initiator: true,
+        trickle: false,
+        stream: stream,
+      });
 
-    peer.on("stream", (stream) => {
-      // Display the incoming stream in your app
-      videoRef.current.srcObject = stream;
-    });
+      newPeer.on("signal", (data) => {
+        console.log("Signal data:", data);
+        // Send `data` to your signaling server to share with the other peer
+      });
 
-    setPeer(peer);
-  };
+      newPeer.on("connect", () => {
+        console.log("Connected to peer");
+      });
 
-  // startScreenSharing();
-  // }, []);
+      newPeer.on("stream", (remoteStream) => {
+        // Display the incoming stream in your app
+        videoRef.current.srcObject = remoteStream;
+      });
+
+      setPeer(newPeer);
+    }
+
+    initPeer();
+  }, []);
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
 
@@ -271,7 +300,7 @@ function GameApp() {
               </button>
             </div>
           </div>
-          <div className="button is-info" onClick={startScreenSharing}>
+          <div className="button is-info" onClick={startStream}>
             Go live{" "}
           </div>
         </div>
