@@ -5,6 +5,7 @@ import Board from "./Board";
 import { useParams, useHistory } from "react-router-dom";
 import { db } from "./firebase";
 import SimplePeer from "simple-peer";
+import toast from "react-hot-toast";
 
 function GameApp() {
   const [board, setBoard] = useState([]);
@@ -18,45 +19,167 @@ function GameApp() {
   const { id } = useParams();
   const history = useHistory();
   const sharebleLink = window.location.href;
+  const [streamId, setStreamId] = useState("");
+  const [ingestorId, setIngestorId] = useState("");
+  const [streamServer, setStreamServer] = useState("");
+  const [streamKey, setStreamKey] = useState("");
+
+  async function createStream() {
+    const url = "https://api.thetavideoapi.com/stream";
+    const headers = {
+      "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
+      "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+      "Content-Type": "application/json",
+    };
+    const body = JSON.stringify({ name: "demo" });
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: body,
+      });
+
+      const data = await response.json();
+      if (data.status === "error") {
+        throw new Error(data.message + response.statusText);
+      }
+      setStreamId(data.body.id);
+      localStorage.setItem("streamId", data.body.id);
+    } catch (error) {
+      toast(error.message);
+      console.error(
+        "There has been a problem with your fetch operation:",
+        error
+      );
+    }
+  }
+
+  async function getIngestors() {
+    const url = "https://api.thetavideoapi.com/ingestor/filter";
+    const headers = {
+      "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
+      "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: headers,
+      });
+
+      const data = await response.json();
+      if (data.status === "error") {
+        throw new Error(data.message + response.statusText);
+      }
+      console.log(data);
+      setIngestorId(data.body.ingestors[0].id);
+    } catch (error) {
+      toast(error.message);
+      console.error(
+        "There has been a problem with your fetch operation:",
+        error
+      );
+    }
+  }
+
+  async function selectIngestor() {
+    const stream_id = localStorage.getItem("streamId");
+    if (ingestorId.length > 10 && stream_id.length > 10) {
+      const url = `https://api.thetavideoapi.com/ingestor/ingestor_${ingestorId}/select`;
+      const headers = {
+        "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
+        "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+        "Content-Type": "application/json",
+      };
+      const body = JSON.stringify({
+        tva_stream: `stream_${stream_id}`,
+      });
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: headers,
+          body: body,
+        });
+
+        const data = await response.json();
+        if (data.status === "error") {
+          throw new Error(data.message + response.statusText);
+        }
+        console.log(data);
+        setStreamServer(data.body.stream_server);
+        setStreamKey(data.body.stream_key);
+      } catch (error) {
+        toast(error.message);
+        console.error(
+          "There has been a problem with your fetch operation:",
+          error
+        );
+      }
+    }
+  }
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
   const [peer, setPeer] = useState(null);
   const videoRef = useRef(null);
 
-  useEffect(() => {
-    const startScreenSharing = async () => {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true,
-      });
+  // useEffect(() => {
+  const startScreenSharing = async () => {
+    if (streamId.length < 10) {
+      // Call the function to create the stream
+      createStream();
+    }
+
+    // Call the function to get ingestors
+    getIngestors();
+
+    // Call the function to select the ingestor
+    selectIngestor();
+
+    console.log(
+      "streamId =",
+      streamId,
+      "ingestorId=",
+      ingestorId,
+      "streamServer=",
+      streamServer,
+      "streamKey=",
+      streamKey
+    );
+
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+    });
+    videoRef.current.srcObject = stream;
+
+    const peer = new SimplePeer({
+      initiator: true,
+      trickle: false,
+      stream: stream,
+    });
+
+    peer.on("signal", (data) => {
+      // Send `data` to your signaling server to share with the other peer
+      // This part requires a signaling server to exchange WebRTC signals
+      console.log("Signal data:", data);
+    });
+
+    peer.on("connect", () => {
+      console.log("Connected to peer");
+    });
+
+    peer.on("stream", (stream) => {
+      // Display the incoming stream in your app
       videoRef.current.srcObject = stream;
+    });
 
-      const peer = new SimplePeer({
-        initiator: true,
-        trickle: false,
-        stream: stream,
-      });
+    setPeer(peer);
+  };
 
-      peer.on("signal", (data) => {
-        // Send `data` to your signaling server to share with the other peer
-        // This part requires a signaling server to exchange WebRTC signals
-        console.log("Signal data:", data);
-      });
-
-      peer.on("connect", () => {
-        console.log("Connected to peer");
-      });
-
-      peer.on("stream", (stream) => {
-        // Display the incoming stream in your app
-        videoRef.current.srcObject = stream;
-      });
-
-      setPeer(peer);
-    };
-
-    startScreenSharing();
-  }, []);
+  // startScreenSharing();
+  // }, []);
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
 
@@ -147,6 +270,9 @@ function GameApp() {
                 Copy
               </button>
             </div>
+          </div>
+          <div className="button is-info" onClick={startScreenSharing}>
+            Go live{" "}
           </div>
         </div>
       )}
