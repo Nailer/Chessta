@@ -7,6 +7,9 @@ import { db } from "./firebase";
 import SimplePeer from "simple-peer";
 import toast from "react-hot-toast";
 
+const api_key = "srvacc_bu27wd9vdc72fpt990rw2t0nr";
+const api_secret = "qq2t3qwjpd2wjka6gx8vtmqii7cddgk1";
+
 function GameApp() {
   const [board, setBoard] = useState([]);
   const [isGameOver, setIsGameOver] = useState();
@@ -27,8 +30,8 @@ function GameApp() {
   async function createStream() {
     const url = "https://api.thetavideoapi.com/stream";
     const headers = {
-      "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
-      "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+      "x-tva-sa-id": api_key,
+      "x-tva-sa-secret": api_secret,
       "Content-Type": "application/json",
     };
     const body = JSON.stringify({ name: "demo" });
@@ -44,6 +47,7 @@ function GameApp() {
       if (data.status === "error") {
         throw new Error(data.message + response.statusText);
       }
+      console.log("createStream", data);
       setStreamId(data.body.id);
       localStorage.setItem("streamId", data.body.id);
     } catch (error) {
@@ -58,8 +62,8 @@ function GameApp() {
   async function getIngestors() {
     const url = "https://api.thetavideoapi.com/ingestor/filter";
     const headers = {
-      "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
-      "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+      "x-tva-sa-id": api_key,
+      "x-tva-sa-secret": api_secret,
     };
 
     try {
@@ -73,7 +77,7 @@ function GameApp() {
         throw new Error(data.message + response.statusText);
       }
       console.log(data);
-      setIngestorId(data.body.ingestors[0].id);
+      setIngestorId(data.body.ingestors[1].id);
     } catch (error) {
       toast(error.message);
       console.error(
@@ -88,12 +92,12 @@ function GameApp() {
     if (ingestorId.length > 10 && stream_id.length > 10) {
       const url = `https://api.thetavideoapi.com/ingestor/ingestor_${ingestorId}/select`;
       const headers = {
-        "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
-        "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+        "x-tva-sa-id": api_key,
+        "x-tva-sa-secret": api_secret,
         "Content-Type": "application/json",
       };
       const body = JSON.stringify({
-        tva_stream: `stream_${stream_id}`,
+        tva_stream: `${stream_id}`,
       });
 
       try {
@@ -134,20 +138,21 @@ function GameApp() {
   }
 
   async function startStream() {
-    if (streamId.length < 10) {
+    const stream_id = localStorage.getItem("streamId");
+    if (stream_id === null) {
       // Call the function to create the stream
-      createStream();
+      await createStream();
     }
 
     // Call the function to get ingestors
-    getIngestors();
+    await getIngestors();
 
     // Call the function to select the ingestor
-    selectIngestor();
+    await selectIngestor();
 
     console.log(
       "streamId =",
-      streamId,
+      stream_id,
       "ingestorId=",
       ingestorId,
       "streamServer=",
