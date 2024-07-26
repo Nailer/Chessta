@@ -1,13 +1,9 @@
 import { configureStore } from "@reduxjs/toolkit";
-import recipient from "./slice/RecepientSlice";
-import campaign from "./slice/CampaignSlice";
-import transction from "./slice/TransactionSlice";
+import edgeCloud from "./slice/EdgeCloudSlice";
 
 export const store = configureStore({
   reducer: {
-    recipient,
-    campaign,
-    transction,
+    edgeCloud,
   },
 });
 

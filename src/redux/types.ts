@@ -17,6 +17,12 @@ export type CampaignT = {
   id: number;
 };
 
+export type EdgeCloudT = {
+  ingestorId: string;
+  streamServer: string;
+  streamKey: string;
+};
+
 export type TransactionT = {
   transactionNo: number;
   time: Date;

@@ -6,6 +6,12 @@ import { useParams, useHistory } from "react-router-dom";
 import { db } from "./firebase";
 import SimplePeer from "simple-peer";
 import toast from "react-hot-toast";
+import { useAppDispatch, useAppSelector } from "./redux/hook";
+import {
+  addIngestor,
+  addStreamKey,
+  addStreamServer,
+} from "./redux/slice/EdgeCloudSlice";
 
 const api_key = "srvacc_bu27wd9vdc72fpt990rw2t0nr";
 const api_secret = "qq2t3qwjpd2wjka6gx8vtmqii7cddgk1";
@@ -26,6 +32,9 @@ function GameApp() {
   const [ingestorId, setIngestorId] = useState("");
   const [streamServer, setStreamServer] = useState("");
   const [streamKey, setStreamKey] = useState("");
+
+  const params = useAppSelector((state) => state.edgeCloud);
+  const dispatch = useAppDispatch();
 
   async function createStream() {
     const url = "https://api.thetavideoapi.com/stream";
@@ -48,7 +57,7 @@ function GameApp() {
         throw new Error(data.message + response.statusText);
       }
       console.log("createStream", data);
-      setStreamId(data.body.id);
+      // setStreamId(data.body.id);
       localStorage.setItem("streamId", data.body.id);
     } catch (error) {
       toast(error.message);
@@ -77,7 +86,11 @@ function GameApp() {
         throw new Error(data.message + response.statusText);
       }
       console.log(data);
-      setIngestorId(data.body.ingestors[1].id);
+      // setIngestorId(data.body.ingestors[1].id);
+      dispatch(addIngestor(data.body.ingestors[0].id));
+      // Call the function to select the ingestor
+      await selectIngestor(data.body.ingestors[0].id);
+      // await unselectIngestor(data.body.ingestors[0].id);
     } catch (error) {
       toast(error.message);
       console.error(
@@ -87,10 +100,10 @@ function GameApp() {
     }
   }
 
-  async function selectIngestor() {
+  async function selectIngestor(id) {
     const stream_id = localStorage.getItem("streamId");
-    if (ingestorId.length > 10 && stream_id.length > 10) {
-      const url = `https://api.thetavideoapi.com/ingestor/ingestor_${ingestorId}/select`;
+    if (params.ingestorId.length > 10 && stream_id.length > 10) {
+      const url = `https://api.thetavideoapi.com/ingestor/ingestor_${id}/select`;
       const headers = {
         "x-tva-sa-id": api_key,
         "x-tva-sa-secret": api_secret,
@@ -109,11 +122,17 @@ function GameApp() {
 
         const data = await response.json();
         if (data.status === "error") {
+          console.log("got here error block");
           throw new Error(data.message + response.statusText);
         }
+        console.log("got here");
         console.log(data);
-        setStreamServer(data.body.stream_server);
-        setStreamKey(data.body.stream_key);
+        // setStreamServer(data.body.stream_server);
+        // setStreamKey(data.body.stream_key);
+        dispatch(addStreamKey(data.body.stream_key));
+        localStorage.setItem("streamKey", data.body.stream_key);
+        localStorage.setItem("streamServer", data.body.stream_server);
+        dispatch(addStreamServer(data.body.stream_server));
       } catch (error) {
         toast(error.message);
         console.error(
@@ -121,6 +140,35 @@ function GameApp() {
           error
         );
       }
+    }
+  }
+
+  async function unselectIngestor(ingestor) {
+    const url = `https://api.thetavideoapi.com/ingestor/ingestor_${ingestor}/unselect`;
+
+    const headers = {
+      "x-tva-sa-id": api_key,
+      "x-tva-sa-secret": api_secret,
+      "Content-Type": "application/json",
+    };
+    try {
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify({}),
+      });
+
+      const data = await response.json();
+      if (data.status === "error") {
+        console.log("got here error block");
+        throw new Error(data.message + response.statusText);
+      }
+      console.log(data);
+    } catch (error) {
+      console.error(
+        "There has been a problem with your fetch operation:",
+        error
+      );
     }
   }
 
@@ -147,19 +195,7 @@ function GameApp() {
     // Call the function to get ingestors
     await getIngestors();
 
-    // Call the function to select the ingestor
-    await selectIngestor();
-
-    console.log(
-      "streamId =",
-      stream_id,
-      "ingestorId=",
-      ingestorId,
-      "streamServer=",
-      streamServer,
-      "streamKey=",
-      streamKey
-    );
+    console.log(params);
     const stream = await startScreenCapture();
 
     if (stream) {
@@ -169,8 +205,8 @@ function GameApp() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          stream_server: streamServer,
-          stream_key: streamKey,
+          stream_server: params.addStreamServer,
+          stream_key: params.addStreamKey,
         }),
       });
 
@@ -186,34 +222,34 @@ function GameApp() {
   const [peer, setPeer] = useState(null);
   const videoRef = useRef(null);
 
-  useEffect(() => {
-    async function initPeer() {
-      const stream = await startScreenCapture();
-      const newPeer = new SimplePeer({
-        initiator: true,
-        trickle: false,
-        stream: stream,
-      });
+  // useEffect(() => {
+  //   async function initPeer() {
+  //     const stream = await startScreenCapture();
+  //     const newPeer = new SimplePeer({
+  //       initiator: true,
+  //       trickle: false,
+  //       stream: stream,
+  //     });
 
-      newPeer.on("signal", (data) => {
-        console.log("Signal data:", data);
-        // Send `data` to your signaling server to share with the other peer
-      });
+  //     newPeer.on("signal", (data) => {
+  //       console.log("Signal data:", data);
+  //       // Send `data` to your signaling server to share with the other peer
+  //     });
 
-      newPeer.on("connect", () => {
-        console.log("Connected to peer");
-      });
+  //     newPeer.on("connect", () => {
+  //       console.log("Connected to peer");
+  //     });
 
-      newPeer.on("stream", (remoteStream) => {
-        // Display the incoming stream in your app
-        videoRef.current.srcObject = remoteStream;
-      });
+  //     newPeer.on("stream", (remoteStream) => {
+  //       // Display the incoming stream in your app
+  //       videoRef.current.srcObject = remoteStream;
+  //     });
 
-      setPeer(newPeer);
-    }
+  //     setPeer(newPeer);
+  //   }
 
-    initPeer();
-  }, []);
+  //   initPeer();
+  // }, []);
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
 
