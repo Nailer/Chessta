@@ -111,7 +111,7 @@ function GameApp() {
         "Content-Type": "application/json",
       };
       const body = JSON.stringify({
-        tva_stream: `stream_rt4tgxc7903ig9av0dh736syb`,
+        tva_stream: `${stream_id}`,
       });
 
       try {
@@ -203,7 +203,34 @@ function GameApp() {
       );
     }
   }
+  async function ListLiveStreamAcc() {
+    const url = `https://api.thetavideoapi.com/service_account/srvacc_si4ctqs3g959v1uukq6chi4qi/streams`;
 
+    const headers = {
+      "x-tva-sa-id": "srvacc_si4ctqs3g959v1uukq6chi4qi",
+      "x-tva-sa-secret": "nrmpczp7shujzndx1rd5bhvreajs5fhy",
+      "Content-Type": "application/json",
+    };
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: headers,
+      });
+
+      const data = await response.json();
+      if (data.status === "error") {
+        console.log("got here error block");
+        throw new Error(data.message + response.statusText);
+      }
+      console.log(data);
+      // await selectIngestor(ingestor);
+    } catch (error) {
+      console.error(
+        "There has been a problem with your fetch operation:",
+        error
+      );
+    }
+  }
   async function startScreenCapture() {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -229,6 +256,7 @@ function GameApp() {
 
     // Call the function to get ingestors
     await getIngestors();
+    // await ListLiveStreamAcc();
     // await getStreamInfo("stream_kjj6sxjw8erramwxk3zeq19cn");
 
     console.log(params);
