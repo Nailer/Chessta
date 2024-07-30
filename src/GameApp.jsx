@@ -13,8 +13,8 @@ import {
   addStreamServer,
 } from "./redux/slice/EdgeCloudSlice";
 
-const api_key = "srvacc_bu27wd9vdc72fpt990rw2t0nr";
-const api_secret = "qq2t3qwjpd2wjka6gx8vtmqii7cddgk1";
+const api_key = "srvacc_nf4ptxvez6tx1x9hsaagumcm9";
+const api_secret = "d4j9vesvbeubsrqfpxd990h1gk14guxb";
 
 function GameApp() {
   const [board, setBoard] = useState([]);
@@ -32,6 +32,7 @@ function GameApp() {
   const [ingestorId, setIngestorId] = useState("");
   const [streamServer, setStreamServer] = useState("");
   const [streamKey, setStreamKey] = useState("");
+  const videoRef = useRef(null);
 
   const params = useAppSelector((state) => state.edgeCloud);
   const dispatch = useAppDispatch();
@@ -85,12 +86,11 @@ function GameApp() {
       if (data.status === "error") {
         throw new Error(data.message + response.statusText);
       }
-      console.log(data);
+      console.log("ingestorID", data);
       // setIngestorId(data.body.ingestors[1].id);
       dispatch(addIngestor(data.body.ingestors[0].id));
       // Call the function to select the ingestor
       await selectIngestor(data.body.ingestors[0].id);
-      // await unselectIngestor(data.body.ingestors[0].id);
     } catch (error) {
       toast(error.message);
       console.error(
@@ -102,7 +102,8 @@ function GameApp() {
 
   async function selectIngestor(id) {
     const stream_id = localStorage.getItem("streamId");
-    if (params.ingestorId.length > 10 && stream_id.length > 10) {
+    if (id.length > 10 && stream_id.length > 10) {
+      console.log("ingestor id", id);
       const url = `https://api.thetavideoapi.com/ingestor/ingestor_${id}/select`;
       const headers = {
         "x-tva-sa-id": api_key,
@@ -110,7 +111,7 @@ function GameApp() {
         "Content-Type": "application/json",
       };
       const body = JSON.stringify({
-        tva_stream: `${stream_id}`,
+        tva_stream: `stream_rt4tgxc7903ig9av0dh736syb`,
       });
 
       try {
@@ -122,7 +123,8 @@ function GameApp() {
 
         const data = await response.json();
         if (data.status === "error") {
-          console.log("got here error block");
+          console.log(data);
+          // await unselectIngestor(id);
           throw new Error(data.message + response.statusText);
         }
         console.log("got here");
@@ -164,6 +166,36 @@ function GameApp() {
         throw new Error(data.message + response.statusText);
       }
       console.log(data);
+      // await selectIngestor(ingestor);
+    } catch (error) {
+      console.error(
+        "There has been a problem with your fetch operation:",
+        error
+      );
+    }
+  }
+
+  async function getStreamInfo(streamId) {
+    const url = `https://api.thetavideoapi.com/stream/${streamId}`;
+
+    const headers = {
+      "x-tva-sa-id": api_key,
+      "x-tva-sa-secret": api_secret,
+      "Content-Type": "application/json",
+    };
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: headers,
+      });
+
+      const data = await response.json();
+      if (data.status === "error") {
+        console.log("got here error block");
+        throw new Error(data.message + response.statusText);
+      }
+      console.log(data);
+      // await selectIngestor(ingestor);
     } catch (error) {
       console.error(
         "There has been a problem with your fetch operation:",
@@ -184,6 +216,9 @@ function GameApp() {
       return null;
     }
   }
+  // Signaling server setup (WebSocket connection)
+  const signalingServerUrl = "ws://localhost:3001";
+  const ws = new WebSocket(signalingServerUrl);
 
   async function startStream() {
     const stream_id = localStorage.getItem("streamId");
@@ -194,11 +229,15 @@ function GameApp() {
 
     // Call the function to get ingestors
     await getIngestors();
+    // await getStreamInfo("stream_kjj6sxjw8erramwxk3zeq19cn");
 
     console.log(params);
     const stream = await startScreenCapture();
 
-    if (stream) {
+    // localStorage.setItem("streamKey", data.body.stream_key);
+    //   localStorage.setItem("streamServer", data.body.stream_server);
+
+    if (stream && params.addStreamServer && params.addStreamKey) {
       const response = await fetch("http://localhost:3001/start-stream", {
         method: "POST",
         headers: {
@@ -212,6 +251,32 @@ function GameApp() {
 
       if (response.ok) {
         console.log("Stream started");
+        // Integrating SimplePeer
+        const peer = new SimplePeer({
+          initiator: true,
+          trickle: false,
+          stream: stream,
+        });
+
+        peer.on("signal", (data) => {
+          console.log("Signal data:", data);
+          // Send signal data to signaling server
+          ws.send(JSON.stringify(data));
+        });
+
+        peer.on("connect", () => {
+          console.log("Connected to peer");
+        });
+
+        peer.on("stream", (remoteStream) => {
+          videoRef.current.srcObject = remoteStream;
+        });
+
+        // Listen for signal data from the signaling server
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          peer.signal(data);
+        };
       } else {
         console.error("Failed to start stream");
       }
@@ -220,7 +285,6 @@ function GameApp() {
 
   ///////////////////////////////VIDEO STREAMING/////////////////////////////
   const [peer, setPeer] = useState(null);
-  const videoRef = useRef(null);
 
   // useEffect(() => {
   //   async function initPeer() {
@@ -344,6 +408,7 @@ function GameApp() {
           <div className="button is-info" onClick={startStream}>
             Go live{" "}
           </div>
+          <video ref={videoRef} autoPlay playsInline />
         </div>
       )}
     </div>
