@@ -4,7 +4,7 @@ import { gameSubject, initGame, resetGame } from "./Game";
 import Board from "./Board";
 import { useParams, useHistory } from "react-router-dom";
 import { db } from "./firebase";
-import SimplePeer from "simple-peer";
+import Peer from "simple-peer";
 import toast from "react-hot-toast";
 import { useAppDispatch, useAppSelector } from "./redux/hook";
 import {
@@ -12,6 +12,8 @@ import {
   addStreamKey,
   addStreamServer,
 } from "./redux/slice/EdgeCloudSlice";
+
+import Hls from "hls.js";
 
 const api_key = "srvacc_nf4ptxvez6tx1x9hsaagumcm9";
 const api_secret = "d4j9vesvbeubsrqfpxd990h1gk14guxb";
@@ -92,7 +94,7 @@ function GameApp() {
       // Call the function to select the ingestor
       await selectIngestor(data.body.ingestors[0].id);
     } catch (error) {
-      toast(error.message);
+      toast("INGESTOR not avaialble, sorry, can't livestream at the moment");
       console.error(
         "There has been a problem with your fetch operation:",
         error
@@ -244,108 +246,102 @@ function GameApp() {
     }
   }
   // Signaling server setup (WebSocket connection)
-  const signalingServerUrl = "ws://localhost:3001";
-  const ws = new WebSocket(signalingServerUrl);
+
+  const [ws, setWs] = useState(null);
+  const [peer, setPeer] = useState(null);
 
   async function startStream() {
     const stream_id = localStorage.getItem("streamId");
     if (stream_id === null) {
-      // Call the function to create the stream
       await createStream();
     }
 
-    // Call the function to get ingestors
     await getIngestors();
-    // await ListLiveStreamAcc();
-    // await getStreamInfo("stream_kjj6sxjw8erramwxk3zeq19cn");
 
-    console.log(params);
     const stream = await startScreenCapture();
 
-    // localStorage.setItem("streamKey", data.body.stream_key);
-    //   localStorage.setItem("streamServer", data.body.stream_server);
+    if (stream) {
+      // const response = await fetch("http://localhost:3001/start-stream", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify({
+      //     stream_server:
+      //       "rtmp://34.173.223.115:1935/live" /* params.addStreamServer */,
+      //     stream_key:
+      //       "P0RMTTzh9XkjQuW5i8O0Ixu4iiewB8E8" /* params.addStreamKey */,
+      //   }),
+      // });
 
-    if (stream && params.addStreamServer && params.addStreamKey) {
-      const response = await fetch("http://localhost:3001/start-stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          stream_server: params.addStreamServer,
-          stream_key: params.addStreamKey,
-        }),
+      // if (response.ok) {
+      const socket = new WebSocket("ws://localhost:3001");
+
+      socket.onopen = () => {
+        console.log("Connected to signaling server");
+        // Inform the server to start streaming
+        socket.send(JSON.stringify({ type: "start-stream" }));
+      };
+
+      socket.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+        if (peer && data.type === "signal") {
+          peer.signal(data.signal);
+        }
+      };
+
+      setWs(socket);
+
+      const p = new Peer({ initiator: true, trickle: false });
+
+      p.on("signal", (signal) => {
+        socket.send(JSON.stringify({ type: "signal", signal }));
       });
 
-      if (response.ok) {
-        console.log("Stream started");
-        // Integrating SimplePeer
-        const peer = new SimplePeer({
-          initiator: true,
-          trickle: false,
-          stream: stream,
+      p.on("connect", () => {
+        console.log("Peer connected");
+      });
+
+      p.on("error", (err) => console.error("Peer error:", err));
+
+      setPeer(p);
+
+      navigator.mediaDevices
+        .getDisplayMedia({ video: true, audio: true })
+        .then((stream) => {
+          p.addStream(stream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: "video/webm; codecs=vp8",
+          });
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              socket.send(
+                JSON.stringify({ type: "stream-data", stream: event.data })
+              );
+            }
+          };
+
+          mediaRecorder.start(100); // Send data every 100ms
         });
 
-        peer.on("signal", (data) => {
-          console.log("Signal data:", data);
-          // Send signal data to signaling server
-          ws.send(JSON.stringify(data));
-        });
+      return () => {
+        socket.close();
+        p.destroy();
+      };
 
-        peer.on("connect", () => {
-          console.log("Connected to peer");
-        });
-
-        peer.on("stream", (remoteStream) => {
-          videoRef.current.srcObject = remoteStream;
-        });
-
-        // Listen for signal data from the signaling server
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          peer.signal(data);
-        };
-      } else {
-        console.error("Failed to start stream");
-      }
+      // } else {
+      //   console.error("Failed to start stream");
+      // }
     }
   }
 
-  ///////////////////////////////VIDEO STREAMING/////////////////////////////
-  const [peer, setPeer] = useState(null);
-
-  // useEffect(() => {
-  //   async function initPeer() {
-  //     const stream = await startScreenCapture();
-  //     const newPeer = new SimplePeer({
-  //       initiator: true,
-  //       trickle: false,
-  //       stream: stream,
-  //     });
-
-  //     newPeer.on("signal", (data) => {
-  //       console.log("Signal data:", data);
-  //       // Send `data` to your signaling server to share with the other peer
-  //     });
-
-  //     newPeer.on("connect", () => {
-  //       console.log("Connected to peer");
-  //     });
-
-  //     newPeer.on("stream", (remoteStream) => {
-  //       // Display the incoming stream in your app
-  //       videoRef.current.srcObject = remoteStream;
-  //     });
-
-  //     setPeer(newPeer);
-  //   }
-
-  //   initPeer();
-  // }, []);
-
-  ///////////////////////////////VIDEO STREAMING/////////////////////////////
-
   useEffect(() => {
+    startStream();
     let subscribe;
     async function init() {
       console.log("[db]", db);
@@ -436,7 +432,12 @@ function GameApp() {
           <div className="button is-info" onClick={startStream}>
             Go live{" "}
           </div>
-          <video ref={videoRef} autoPlay playsInline />
+          {/* <video
+            ref={videoRef}
+            controls
+            autoPlay
+            style={{ width: "100%", height: "auto" }}
+          /> */}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import Home from "./Home";
 import Main from "./Main";
 import UserForm from "./Userform";
 import GameApp from "./GameApp";
+import Viewer from "./Viewer";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./firebase";
 
@@ -29,6 +30,9 @@ export default function App() {
         </Route>
         <Route path="/game/:id">
           <GameApp />
+        </Route>
+        <Route path="/stream">
+          <Viewer />
         </Route>
       </Switch>
     </Router>
